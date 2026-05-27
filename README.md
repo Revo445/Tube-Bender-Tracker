@@ -5,9 +5,13 @@ A Flask web application for tracking trolley tube bending operations, designed f
 ## Features
 
 - **Add Bend Records** — Log tube bending jobs with material, diameter, angle, radius, trolley model, operator, and status
+- **Edit Records** — Update any existing bend record with a dedicated edit page
 - **Dashboard Stats** — View total bends, pass/fail/pending counts, and pass rate at a glance
+- **Failure Breakdown** — Visual breakdown of failure reasons when records fail
 - **Status Tracking** — Mark bends as Pass, Fail, or Pending
 - **Fail Reason Codes** — When a bend fails, select from standardized reason codes: Wrinkling, Flattening, Springback, Cracking, Ovality, Galling, Incorrect Angle, Incorrect Radius, Material Defect, Tooling Issue, or Other
+- **Search & Filter** — Search by job number, operator, or trolley model; filter by status, material, and date range
+- **CSV Export** — Download all records as a CSV file for reporting
 - **Responsive Design** — Works on desktop, tablet, and mobile
 - **REST API** — Access bend data via `/api/bends` and `/api/bends/<id>`
 - **Delete Records** — Remove entries with confirmation
@@ -68,9 +72,11 @@ TrolleyBendTracker/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/` | Main dashboard |
+| GET | `/` | Main dashboard with search & filters |
 | POST | `/add` | Add a new bend record |
+| GET/POST | `/edit/<id>` | Edit an existing bend record |
 | GET | `/delete/<id>` | Delete a bend record |
+| GET | `/export` | Download all records as CSV |
 | GET | `/api/bends` | Get all bends as JSON |
 | GET | `/api/bends/<id>` | Get a specific bend as JSON |
 
