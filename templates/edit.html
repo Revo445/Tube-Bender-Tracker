@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Bend #{{ bend.id }} - Trolley Tube Bend Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 12h20"/>
+                        <path d="M2 12c0 5.523 4.477 10 10 10s10-4.477 10-10"/>
+                        <path d="M12 2v20"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>Edit Bend Record</h1>
+                    <p>Updating record #{{ bend.id }}</p>
+                </div>
+            </div>
+            <a href="/" class="btn-export">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="19" y1="12" x2="5" y2="12"/>
+                    <polyline points="12 19 5 12 12 5"/>
+                </svg>
+                Back to Records
+            </a>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="edit-container">
+            <section class="form-section edit-form-section">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Edit Record #{{ bend.id }}
+                </h2>
+                <form action="/edit/{{ bend.id }}" method="POST" class="bend-form" id="edit-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="date">Date <span class="required">*</span></label>
+                            <input type="date" id="date" name="date" required value="{{ bend.date }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="job_number">Job Number <span class="required">*</span></label>
+                            <input type="text" id="job_number" name="job_number" value="{{ bend.job_number }}" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tube_material">Material <span class="required">*</span></label>
+                            <select id="tube_material" name="tube_material" required>
+                                {% for mat in materials %}
+                                <option value="{{ mat }}" {{ 'selected' if bend.tube_material == mat else '' }}>{{ mat }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="tube_diameter">Diameter (mm) <span class="required">*</span></label>
+                            <input type="number" step="0.1" id="tube_diameter" name="tube_diameter" value="{{ bend.tube_diameter }}" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="bend_angle">Angle (°) <span class="required">*</span></label>
+                            <input type="number" step="0.1" id="bend_angle" name="bend_angle" value="{{ bend.bend_angle }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="bend_radius">Radius (mm) <span class="required">*</span></label>
+                            <input type="number" step="0.1" id="bend_radius" name="bend_radius" value="{{ bend.bend_radius }}" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="trolley_model">Trolley Model <span class="required">*</span></label>
+                            <input type="text" id="trolley_model" name="trolley_model" value="{{ bend.trolley_model }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="operator">Operator <span class="required">*</span></label>
+                            <input type="text" id="operator" name="operator" value="{{ bend.operator }}" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="status">Status <span class="required">*</span></label>
+                            <select id="status" name="status" required onchange="toggleFailReason()">
+                                {% for s in statuses %}
+                                <option value="{{ s }}" {{ 'selected' if bend.status == s else '' }}>{{ s }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group" id="fail-reason-group" style="display: {{ 'flex' if bend.status == 'Fail' else 'none' }};">
+                            <label for="fail_reason">Fail Reason <span class="required">*</span></label>
+                            <select id="fail_reason" name="fail_reason" {{ 'required' if bend.status == 'Fail' else '' }}>
+                                <option value="">Select...</option>
+                                {% for reason in fail_reasons %}
+                                <option value="{{ reason }}" {{ 'selected' if bend.fail_reason == reason else '' }}>{{ reason }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <textarea id="notes" name="notes" rows="2">{{ bend.notes }}</textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                                <polyline points="17 21 17 13 7 13 7 21"/>
+                                <polyline points="7 3 7 8 15 8"/>
+                            </svg>
+                            Save Changes
+                        </button>
+                        <a href="/" class="btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </section>
+        </div>
+
+        <footer>
+            <p>Trolley Tube Bend Tracker</p>
+        </footer>
+    </div>
+
+    <script>
+        function toggleFailReason() {
+            const status = document.getElementById('status').value;
+            const failReasonGroup = document.getElementById('fail-reason-group');
+            const failReason = document.getElementById('fail_reason');
+
+            if (status === 'Fail') {
+                failReasonGroup.style.display = 'flex';
+                failReason.setAttribute('required', 'required');
+            } else {
+                failReasonGroup.style.display = 'none';
+                failReason.removeAttribute('required');
+                failReason.value = '';
+            }
+        }
+    </script>
+</body>
+</html>

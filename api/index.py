@@ -1,13 +1,14 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
+import csv
+import io
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = os.environ.get('SECRET_KEY', 'trolley-bend-tracker-secret-key')
 
 # Database configuration
-# Use /tmp for Vercel (writable), fallback to local instance folder
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
 os.makedirs(INSTANCE_DIR, exist_ok=True)
@@ -57,26 +58,92 @@ class BendRecord(db.Model):
 with app.app_context():
     db.create_all()
 
-@app.route('/')
-def index():
-    bends = BendRecord.query.order_by(BendRecord.date.desc()).all()
-    bend_list = [b.to_dict() for b in bends]
+# Context processor for template globals
+@app.context_processor
+def inject_globals():
+    return {
+        'now': datetime.now().strftime('%Y-%m-%d'),
+        'materials': ['Steel', 'Stainless Steel', 'Aluminum', 'Copper', 'Brass', 'Titanium'],
+        'fail_reasons': ['Wrinkling', 'Flattening', 'Springback', 'Cracking', 'Ovality', 
+                        'Galling', 'Incorrect Angle', 'Incorrect Radius', 'Material Defect', 
+                        'Tooling Issue', 'Other'],
+        'statuses': ['Pending', 'Pass', 'Fail']
+    }
 
-    # Calculate stats
+def get_filtered_bends(search='', status_filter='', material_filter='', date_from='', date_to=''):
+    query = BendRecord.query
+    
+    if search:
+        search_term = f'%{search}%'
+        query = query.filter(
+            db.or_(
+                BendRecord.job_number.ilike(search_term),
+                BendRecord.operator.ilike(search_term),
+                BendRecord.trolley_model.ilike(search_term),
+                BendRecord.notes.ilike(search_term)
+            )
+        )
+    
+    if status_filter:
+        query = query.filter(BendRecord.status == status_filter)
+    
+    if material_filter:
+        query = query.filter(BendRecord.tube_material == material_filter)
+    
+    if date_from:
+        query = query.filter(BendRecord.date >= date_from)
+    
+    if date_to:
+        query = query.filter(BendRecord.date <= date_to)
+    
+    return query.order_by(BendRecord.date.desc()).all()
+
+def calculate_stats(bends):
     total = len(bends)
     passed = sum(1 for b in bends if b.status == 'Pass')
     failed = sum(1 for b in bends if b.status == 'Fail')
     pending = sum(1 for b in bends if b.status == 'Pending')
-
-    stats = {
+    
+    # Calculate fail reasons breakdown
+    fail_reasons = {}
+    for b in bends:
+        if b.status == 'Fail' and b.fail_reason:
+            fail_reasons[b.fail_reason] = fail_reasons.get(b.fail_reason, 0) + 1
+    
+    return {
         'total': total,
         'passed': passed,
         'failed': failed,
         'pending': pending,
-        'pass_rate': round((passed / total * 100), 1) if total > 0 else 0
+        'pass_rate': round((passed / total * 100), 1) if total > 0 else 0,
+        'fail_reasons': fail_reasons
     }
 
-    return render_template('index.html', bends=bend_list, stats=stats)
+@app.route('/')
+def index():
+    # Get filter params
+    search = request.args.get('search', '')
+    status_filter = request.args.get('status_filter', '')
+    material_filter = request.args.get('material_filter', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    bends = get_filtered_bends(search, status_filter, material_filter, date_from, date_to)
+    bend_list = [b.to_dict() for b in bends]
+    stats = calculate_stats(bends)
+    
+    # Get unique materials for filter dropdown
+    all_materials = [m[0] for m in db.session.query(BendRecord.tube_material).distinct().all()]
+    
+    return render_template('index.html', 
+                         bends=bend_list, 
+                         stats=stats,
+                         search=search,
+                         status_filter=status_filter,
+                         material_filter=material_filter,
+                         date_from=date_from,
+                         date_to=date_to,
+                         all_materials=all_materials)
 
 @app.route('/add', methods=['POST'])
 def add_bend():
@@ -100,6 +167,32 @@ def add_bend():
     flash('Bend record added successfully!', 'success')
     return redirect(url_for('index'))
 
+@app.route('/edit/<int:bend_id>', methods=['GET', 'POST'])
+def edit_bend(bend_id):
+    bend = db.session.get(BendRecord, bend_id)
+    if not bend:
+        flash('Record not found.', 'error')
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        bend.date = request.form.get('date', bend.date)
+        bend.job_number = request.form.get('job_number', '').strip()
+        bend.tube_material = request.form.get('tube_material', '').strip()
+        bend.tube_diameter = request.form.get('tube_diameter', '').strip()
+        bend.bend_angle = request.form.get('bend_angle', '').strip()
+        bend.bend_radius = request.form.get('bend_radius', '').strip()
+        bend.trolley_model = request.form.get('trolley_model', '').strip()
+        bend.operator = request.form.get('operator', '').strip()
+        bend.status = request.form.get('status', 'Pending')
+        bend.fail_reason = request.form.get('fail_reason', '').strip() if request.form.get('status') == 'Fail' else None
+        bend.notes = request.form.get('notes', '').strip()
+        
+        db.session.commit()
+        flash('Bend record updated successfully!', 'success')
+        return redirect(url_for('index'))
+    
+    return render_template('edit.html', bend=bend.to_dict())
+
 @app.route('/delete/<int:bend_id>')
 def delete_bend(bend_id):
     bend = db.session.get(BendRecord, bend_id)
@@ -110,6 +203,29 @@ def delete_bend(bend_id):
     else:
         flash('Record not found.', 'error')
     return redirect(url_for('index'))
+
+@app.route('/export')
+def export_csv():
+    bends = BendRecord.query.order_by(BendRecord.date.desc()).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['ID', 'Date', 'Job Number', 'Material', 'Diameter (mm)', 
+                     'Angle (°)', 'Radius (mm)', 'Trolley Model', 'Operator', 
+                     'Status', 'Fail Reason', 'Notes', 'Created At'])
+    
+    for b in bends:
+        writer.writerow([b.id, b.date, b.job_number, b.tube_material, 
+                        b.tube_diameter, b.bend_angle, b.bend_radius, 
+                        b.trolley_model, b.operator, b.status, 
+                        b.fail_reason or '', b.notes or '', b.created_at])
+    
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=bend_records_{datetime.now().strftime("%Y%m%d")}.csv'}
+    )
 
 @app.route('/api/bends')
 def api_bends():
