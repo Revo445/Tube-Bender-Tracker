@@ -25,17 +25,18 @@ class BendRecord(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.String(10), nullable=False)
-    job_number = db.Column(db.String(50), nullable=False)
-    tube_material = db.Column(db.String(50), nullable=False)
+    job_number = db.Column(db.String(50), nullable=True)
+    tube_material = db.Column(db.String(50), nullable=False, default='Stainless Steel')
     tube_diameter = db.Column(db.String(20), nullable=False)
-    bend_angle = db.Column(db.String(20), nullable=False)
+    bend_angle = db.Column(db.String(20), nullable=True)
     bend_radius = db.Column(db.String(20), nullable=False)
-    trolley_model = db.Column(db.String(50), nullable=False)
+    trolley_model = db.Column(db.String(50), nullable=True)
     operator = db.Column(db.String(50), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='Pending')
     fail_reason = db.Column(db.String(50), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.String(50), default=lambda: datetime.now().isoformat())
+
 
     def to_dict(self):
         return {
@@ -145,17 +146,25 @@ def index():
                          date_to=date_to,
                          all_materials=all_materials)
 
+def resolve_operator(form):
+    """Resolve operator value, supporting custom 'Other' entries."""
+    op = form.get('operator', '').strip()
+    custom = form.get('operator_custom', '').strip()
+    if op == '__custom__' or not op:
+        return custom or op
+    return op
+
 @app.route('/add', methods=['POST'])
 def add_bend():
     new_bend = BendRecord(
         date=request.form.get('date', datetime.now().strftime('%Y-%m-%d')),
-        job_number=request.form.get('job_number', '').strip(),
-        tube_material=request.form.get('tube_material', '').strip(),
+        job_number=request.form.get('job_number', '').strip() or None,
+        tube_material=request.form.get('tube_material', 'Stainless Steel').strip(),
         tube_diameter=request.form.get('tube_diameter', '').strip(),
-        bend_angle=request.form.get('bend_angle', '').strip(),
+        bend_angle=request.form.get('bend_angle', '').strip() or None,
         bend_radius=request.form.get('bend_radius', '').strip(),
-        trolley_model=request.form.get('trolley_model', '').strip(),
-        operator=request.form.get('operator', '').strip(),
+        trolley_model=request.form.get('trolley_model', '').strip() or None,
+        operator=resolve_operator(request.form),
         status=request.form.get('status', 'Pending'),
         fail_reason=request.form.get('fail_reason', '').strip() if request.form.get('status') == 'Fail' else None,
         notes=request.form.get('notes', '').strip()
@@ -167,6 +176,7 @@ def add_bend():
     flash('Bend record added successfully!', 'success')
     return redirect(url_for('index'))
 
+
 @app.route('/edit/<int:bend_id>', methods=['GET', 'POST'])
 def edit_bend(bend_id):
     bend = db.session.get(BendRecord, bend_id)
@@ -176,16 +186,17 @@ def edit_bend(bend_id):
     
     if request.method == 'POST':
         bend.date = request.form.get('date', bend.date)
-        bend.job_number = request.form.get('job_number', '').strip()
-        bend.tube_material = request.form.get('tube_material', '').strip()
+        bend.job_number = request.form.get('job_number', '').strip() or None
+        bend.tube_material = request.form.get('tube_material', 'Stainless Steel').strip()
         bend.tube_diameter = request.form.get('tube_diameter', '').strip()
-        bend.bend_angle = request.form.get('bend_angle', '').strip()
+        bend.bend_angle = request.form.get('bend_angle', '').strip() or None
         bend.bend_radius = request.form.get('bend_radius', '').strip()
-        bend.trolley_model = request.form.get('trolley_model', '').strip()
-        bend.operator = request.form.get('operator', '').strip()
+        bend.trolley_model = request.form.get('trolley_model', '').strip() or None
+        bend.operator = resolve_operator(request.form)
         bend.status = request.form.get('status', 'Pending')
         bend.fail_reason = request.form.get('fail_reason', '').strip() if request.form.get('status') == 'Fail' else None
         bend.notes = request.form.get('notes', '').strip()
+
         
         db.session.commit()
         flash('Bend record updated successfully!', 'success')

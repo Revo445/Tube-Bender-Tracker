@@ -153,8 +153,14 @@
                             <input type="date" id="date" name="date" required value="{{ now }}">
                         </div>
                         <div class="form-group">
-                            <label for="job_number">Job Number <span class="required">*</span></label>
-                            <input type="text" id="job_number" name="job_number" placeholder="e.g., JOB-2024-001" required>
+                            <label for="operator">Operator <span class="required">*</span></label>
+                            <select id="operator" name="operator" required onchange="toggleCustomOperator()">
+                                <option value="">Select...</option>
+                                <option value="Maint">Maint</option>
+                                <option value="Prod">Prod</option>
+                                <option value="__custom__">Other (type below)</option>
+                            </select>
+                            <input type="text" id="operator_custom" name="operator_custom" placeholder="Enter name..." style="display:none; margin-top: 6px;">
                         </div>
                     </div>
 
@@ -162,9 +168,8 @@
                         <div class="form-group">
                             <label for="tube_material">Material <span class="required">*</span></label>
                             <select id="tube_material" name="tube_material" required>
-                                <option value="">Select...</option>
                                 {% for mat in materials %}
-                                <option value="{{ mat }}">{{ mat }}</option>
+                                <option value="{{ mat }}" {{ 'selected' if mat == 'Stainless Steel' else '' }}>{{ mat }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -176,25 +181,26 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="bend_angle">Angle (°) <span class="required">*</span></label>
-                            <input type="number" step="0.1" id="bend_angle" name="bend_angle" placeholder="90" required>
-                        </div>
-                        <div class="form-group">
                             <label for="bend_radius">Radius (mm) <span class="required">*</span></label>
                             <input type="number" step="0.1" id="bend_radius" name="bend_radius" placeholder="50" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="bend_angle">Angle (°) <span class="optional">(optional)</span></label>
+                            <input type="number" step="0.1" id="bend_angle" name="bend_angle" placeholder="90">
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="trolley_model">Trolley Model <span class="required">*</span></label>
-                            <input type="text" id="trolley_model" name="trolley_model" placeholder="T-500 Series" required>
+                            <label for="job_number">Job # / Work Order <span class="optional">(optional)</span></label>
+                            <input type="text" id="job_number" name="job_number" placeholder="e.g., WO-001">
                         </div>
                         <div class="form-group">
-                            <label for="operator">Operator <span class="required">*</span></label>
-                            <input type="text" id="operator" name="operator" placeholder="Name" required>
+                            <label for="trolley_model">Trolley Model <span class="optional">(optional)</span></label>
+                            <input type="text" id="trolley_model" name="trolley_model" placeholder="T-500 Series">
                         </div>
                     </div>
+
 
                     <div class="form-row">
                         <div class="form-group">
@@ -296,12 +302,13 @@
                             <tr>
                                 <td class="mono">#{{ bend.id }}</td>
                                 <td>{{ bend.date }}</td>
-                                <td>{{ bend.job_number }}</td>
+                                <td>{{ bend.job_number or '—' }}</td>
                                 <td>{{ bend.tube_material }}</td>
                                 <td class="mono">{{ bend.tube_diameter }}</td>
-                                <td class="mono">{{ bend.bend_angle }}°</td>
+                                <td class="mono">{{ (bend.bend_angle + '°') if bend.bend_angle else '—' }}</td>
                                 <td class="mono">{{ bend.bend_radius }}</td>
-                                <td>{{ bend.trolley_model }}</td>
+                                <td>{{ bend.trolley_model or '—' }}</td>
+
                                 <td>{{ bend.operator }}</td>
                                 <td>
                                     <span class="status-badge status-{{ bend.status|lower }}">
@@ -375,6 +382,37 @@
                 failReason.value = '';
             }
         }
+
+        // Toggle custom operator input
+        function toggleCustomOperator() {
+            const op = document.getElementById('operator');
+            const custom = document.getElementById('operator_custom');
+            if (op.value === '__custom__') {
+                custom.style.display = 'block';
+                custom.setAttribute('required', 'required');
+                custom.focus();
+            } else {
+                custom.style.display = 'none';
+                custom.removeAttribute('required');
+                custom.value = '';
+            }
+        }
+
+        // Before submit: if custom operator selected, use the typed value
+        document.getElementById('add-form').addEventListener('submit', function(e) {
+            const op = document.getElementById('operator');
+            const custom = document.getElementById('operator_custom');
+            if (op.value === '__custom__' && custom.value.trim()) {
+                // Replace the operator value with the custom one
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'operator';
+                hidden.value = custom.value.trim();
+                op.disabled = true;
+                this.appendChild(hidden);
+            }
+        });
     </script>
+
 </body>
 </html>

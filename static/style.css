@@ -422,6 +422,16 @@ section h2 svg {
     margin-left: 2px;
 }
 
+.form-group label .optional {
+    color: var(--gray-400);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: 4px;
+    font-size: 0.6875rem;
+}
+
+
 .form-group input,
 .form-group select,
 .form-group textarea {
