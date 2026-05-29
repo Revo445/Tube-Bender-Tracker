@@ -9,11 +9,19 @@ app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = os.environ.get('SECRET_KEY', 'trolley-bend-tracker-secret-key')
 
 # Database configuration
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
-os.makedirs(INSTANCE_DIR, exist_ok=True)
+# On Vercel, the filesystem is read-only except for /tmp.
+# Use DATABASE_URL env var for persistent PostgreSQL (e.g. Supabase).
+# Falls back to /tmp/bends.db (SQLite) which is writable on Vercel but ephemeral.
+_database_url = os.environ.get('DATABASE_URL')
 
-DB_PATH = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(INSTANCE_DIR, 'bends.db'))
+if _database_url:
+    # Supabase/Heroku sometimes returns 'postgres://' which SQLAlchemy requires as 'postgresql://'
+    if _database_url.startswith('postgres://'):
+        _database_url = _database_url.replace('postgres://', 'postgresql://', 1)
+    DB_PATH = _database_url
+else:
+    DB_PATH = 'sqlite:////tmp/bends.db'
+
 app.config['SQLALCHEMY_DATABASE_URI'] = DB_PATH
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
